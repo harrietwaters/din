@@ -1,2 +1,2 @@
 import time
-from .diyNest.__main__ import app
+from din.__main__ import app

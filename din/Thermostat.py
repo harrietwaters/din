@@ -1,9 +1,23 @@
 from transitions import Machine, State
+from RPi import GPIO
 
 import json
 
 from .display import Display
 from .Fan import fan
+
+GPIO.setmode(GPIO.BCM)
+
+HEAT_PIN = 17
+COMPRESSOR_PIN = 27
+FAN_PIN = 22
+POWER_PIN = 10
+
+relay_pins = {HEAT_PIN, COMPRESSOR_PIN, FAN_PIN, POWER_PIN}
+
+for pin in relay_pins:
+    GPIO.setup(pin, GPIO.OUT)
+    GPIO.output(pin, GPIO.HIGH)
 
 class Thermostat(object):
     def __init__(self, fan):
@@ -11,6 +25,7 @@ class Thermostat(object):
         self._target_temp = 0
 
         self.fan = fan
+        self.fan.fan_pin=FAN_PIN
         self.fan.auto()
 
         self.display = Display()
@@ -20,15 +35,22 @@ class Thermostat(object):
         self._temp_high = None
 
         self._temp_history = []
+
+        GPIO.output(POWER_PIN, GPIO.LOW)
     
+    def __init__(self, fan):
+        for pin in relay_pins:
+            GPIO.output(pin, GPIO.HIGH)
+
     def to_json(self):
         return json.dumps({
-            'current_temp': str(self._curr_temp),
-            'target_temp': str(self._target_temp),
-            'temp_history': str(self._temp_history),
-            'temp_high': str(self._temp_high),
-            'thermostat_mode': str(self.state[:4]),
-            'thermostat_state': str(self.state),
+            'currentTemp': int(self._curr_temp),
+            'targetTemp': int(self._target_temp),
+            'tempHistory': str(self._temp_history),
+            'tempHigh': str(self._temp_high),
+            'thermostatMode': str(self.state[:4]),
+            'thermostatState': str(self.state),
+            'fanMode': self.fan.state,
             'fan': self.fan.to_json()
         })
 
@@ -91,15 +113,19 @@ class Thermostat(object):
         self.display.thermostat_mode = 'heat'
 
     def on_enter_heat_heater_on(self):
+        GPIO.output(HEAT_PIN, GPIO.LOW)
         self.fan.turn_fan_on()
 
     def on_exit_heat_heater_on(self):
+        GPIO.output(HEAT_PIN, GPIO.HIGH)
         self.fan.turn_fan_off()
 
     def on_enter_cool_compressor_on(self):
+        GPIO.output(COMPRESSOR_PIN, GPIO.LOW)
         self.fan.turn_fan_on()
 
     def on_exit_cool_compressor_on(self):
+        GPIO.output(COMPRESSOR_PIN, GPIO.HIGH)
         self.fan.turn_fan_off()
 
 thermostat = Thermostat(fan)
